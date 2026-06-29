@@ -3,157 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>未来の交通シグナル - Light Guide</title>
+    <title>Light Guide - 次世代交通ナビ</title>
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
     <style>
         body {
-            margin: 0;
-            padding: 0;
-            background-color: #0b0f19;
-            color: #ffffff;
+            margin: 0; padding: 0;
+            background-color: #0b0f19; color: #fff;
             font-family: 'Helvetica Neue', Arial, sans-serif;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            height: 100vh;
+            overflow: hidden; display: flex; flex-direction: column; height: 100vh;
         }
+        .hud-mode { transform: scaleX(-1); }
 
-        /* HUD（反転）モードの切り替え用スタイル */
-        .hud-mode {
-            transform: scaleX(-1);
-        }
-
+        /* 上部インフォメーションパネル */
         header {
-            padding: 20px;
-            text-align: center;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.8), rgba(0,0,0,0));
-            z-index: 10;
+            padding: 15px; background: rgba(11, 15, 25, 0.9);
+            border-bottom: 1px solid rgba(255, 215, 0, 0.3); z-index: 1000;
         }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: center; }
+        .info-box { background: rgba(255,255,255,0.05); padding: 8px; border-radius: 8px; }
+        .info-label { font-size: 0.75rem; color: #aaa; margin-bottom: 2px; }
+        .info-value { font-size: 1.1rem; font-weight: bold; color: #00ffcc; }
+        .highlight { color: #ffd700; text-shadow: 0 0 10px rgba(255,215,0,0.5); }
 
-        h1 {
-            font-size: 1.2rem;
-            margin: 0;
-            letter-spacing: 2px;
-            color: #00ffcc;
+        /* メインエリア（地図と光のレイヤー） */
+        #main-container { flex-grow: 1; position: relative; width: 100%; }
+        #map { width: 100%; height: 100%; z-index: 1; }
+
+        /* 地図の上に重なる光のガイド */
+        #light-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 10; display: flex; justify-content: center; align-items: center;
         }
-
-        /* 光のシグナルを表示するメインエリア */
-        #display-area {
-            flex-grow: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            position: relative;
-        }
-
-        /* 黄金色の光の波アニメーション */
         .light-stream {
-            width: 80%;
-            height: 10px;
+            width: 85%; height: 12px;
             background: linear-gradient(90deg, transparent, #ffd700, #ffffff, #ffd700, transparent);
-            background-size: 200% 100%;
-            border-radius: 5px;
+            background-size: 200% 100%; border-radius: 6px;
             box-shadow: 0 0 30px #ffd700, 0 0 10px #ffd700;
-            animation: moveLight 2s infinite linear;
-            display: none; /* 初期状態は非表示 */
+            animation: moveLight 1.5s infinite linear; display: none;
         }
-
         @keyframes moveLight {
             0% { background-position: 200% 0; }
             100% { background-position: -200% 0; }
         }
 
-        .status-text {
-            position: absolute;
-            font-size: 1.5rem;
-            font-weight: bold;
-            text-shadow: 0 0 10px rgba(255,215,0,0.5);
-            text-align: center;
+        /* 観光地ポップアップ通知 */
+        #spot-banner {
+            position: absolute; top: 20px; left: 5%; width: 90%;
+            background: rgba(0, 204, 204, 0.95); color: #000; padding: 10px;
+            border-radius: 10px; font-weight: bold; text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5); z-index: 100;
+            display: none; animation: fadeIn 0.5s ease;
         }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* コントロールボタンエリア */
+        /* 下部操作ボタン */
         footer {
-            padding: 30px 20px;
-            display: flex;
-            gap: 15px;
-            background: linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0));
-            z-index: 10;
+            padding: 20px; display: flex; gap: 15px;
+            background: rgba(11, 15, 25, 0.9); z-index: 1000;
         }
-
         button {
-            flex: 1;
-            padding: 15px;
-            border: none;
-            border-radius: 30px;
-            font-size: 1rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
+            flex: 1; padding: 15px; border: none; border-radius: 30px;
+            font-size: 0.95rem; font-weight: bold; cursor: pointer; transition: all 0.2s;
         }
-
-        .btn-primary {
-            background-color: #ffd700;
-            color: #000;
-            box-shadow: 0 0 15px rgba(255,215,0,0.4);
-        }
-
-        .btn-secondary {
-            background-color: rgba(255,255,255,0.1);
-            color: #fff;
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-
-        button:active {
-            transform: scale(0.95);
-        }
+        .btn-primary { background-color: #ffd700; color: #000; box-shadow: 0 0 15px rgba(255,215,0,0.3); }
+        .btn-secondary { background-color: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); }
+        button:active { transform: scale(0.95); }
     </style>
 </head>
 <body>
 
     <header>
-        <h1>AI TRAFFIC OPTIMIZER</h1>
+        <div class="info-grid">
+            <div class="info-box">
+                <div class="info-label">前方渋滞状況</div>
+                <div id="traffic-status" class="info-value" style="color: #00ffcc;">順調 (0分遅れ)</div>
+            </div>
+            <div class="info-box">
+                <div class="info-label">おすすめルート</div>
+                <div id="time-saved" class="info-value highlight">---</div>
+            </div>
+        </div>
     </header>
 
-    <div id="display-area">
-        <div id="status" class="status-text">道路は順調です<br><span style="font-size:0.9rem; color:#aaa;">渋滞を監視中...</span></div>
-        <div id="light" class="light-stream"></div>
+    <div id="main-container">
+        <div id="spot-banner">近くの観光名所：🌟歴史ある城下町エリア</div>
+        <div id="map"></div>
+        <div id="light-overlay">
+            <div id="light-bar" class="light-stream"></div>
+        </div>
     </div>
 
     <footer>
-        <button class="btn-secondary" onclick="toggleHUD()">HUDモード</button>
-        <button class="btn-primary" onclick="simulateSignal()">シグナルテスト</button>
+        <button class="btn-secondary" onclick="toggleHUD()">HUD投影</button>
+        <button class="btn-primary" onclick="triggerJamSimulation()">渋滞・迂回デモ</button>
     </footer>
 
     <script>
-        // PWAのService Workerを登録するプログラム
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js')
-                .then(() => console.log('Service Worker 登録完了'))
-                .catch(err => console.error('Service Worker 登録失敗', err));
-        }
+        let map;
+        let marker;
 
-        // HUD（フロントガラス投影用の左右反転）切り替え
-        function toggleHUD() {
-            document.body.classList.toggle('hud-mode');
-        }
-
-        // 渋滞検知時の光シグナルをシミュレートする関数
-        function simulateSignal() {
-            const status = document.getElementById('status');
-            const light = document.getElementById('light');
-
-            status.innerHTML = "<span style='color:#ffd700;'>◆ 渋滞回避ルート検知 ◆</span><br><span style='font-size:1.2rem;'>左方向へ迂回してください</span>";
-            light.style.display = 'block';
-
-            // スマホを振動させる（バイブレーション機能）
-            if (navigator.vibrate) {
-                navigator.vibrate([200, 100, 200]);
-            }
-        }
-    </script>
-</body>
-</html>
+        // アプリ起動時に地図とGPSを初期化
+        window.onload = function() {
+            // 初期位置（仮で東京駅周辺）に地図を作成
+            map = L.map('map', { zoomControl: false }).setView(
