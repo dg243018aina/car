@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Light Guide - かんたん観光ナビ</title>
+    <title>Light Guide - ルートを選べる観光ナビ</title>
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet.gridlayer.googlemutant@latest/dist/Leaflet.GoogleMutant.js"></script>
 
     <style>
         :root {
-            --primary-color: #1a73e8; /* Googleマップ風の安心できる青 */
-            --accent-color: #fbbc04;  /* 見やすい黄色 */
+            --primary-color: #1a73e8; /* 最短ルート用の青 */
+            --sightseeing-color: #34a853; /* 観光ルート用の緑 */
+            --accent-color: #fbbc04;  /* 光の誘導ライン */
             --text-dark: #202124;
             --bg-light: #f8f9fa;
         }
@@ -28,15 +28,12 @@
         }
         .hud-mode { transform: scaleX(-1); }
 
-        /* 🗺️ 一番上に配置する「かんたん目的地入力」 */
+        /* 🗺️ 目的地入力エリア */
         .search-container {
             background: #fff; padding: 12px 15px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1000;
         }
-        .input-group {
-            display: flex; flex-direction: column; gap: 8px;
-            max-width: 600px; margin: 0 auto;
-        }
+        .input-group { display: flex; flex-direction: column; gap: 8px; max-width: 600px; margin: 0 auto; }
         .input-row { display: flex; align-items: center; gap: 10px; }
         .input-label {
             font-size: 0.9rem; font-weight: bold; padding: 4px 8px;
@@ -44,30 +41,39 @@
         }
         .label-start { background: #e8f0fe; color: #1a73e8; }
         .label-end { background: #feeee5; color: #ea4335; }
-        
         .nav-input {
             flex-grow: 1; padding: 10px 12px; border: 2px solid #dadce0;
-            border-radius: 8px; font-size: 1.1rem; font-weight: bold;
-            color: var(--text-dark); background: #fff;
+            border-radius: 8px; font-size: 1.1rem; font-weight: bold; color: var(--text-dark);
         }
-        .nav-input:focus { border-color: var(--primary-color); outline: none; }
 
-        /* ⏱️ 一番目立たせたい「到着予想時間と短縮」パネル */
+        /* 🔀 【新機能】最短 vs 観光 ルート選択スイッチ */
+        .route-selector {
+            display: flex; gap: 10px; padding: 5px 15px; background: #fff;
+            justify-content: center; z-index: 1000; border-bottom: 1px solid #dadce0;
+        }
+        .mode-btn {
+            flex: 1; max-width: 290px; padding: 12px; border: 2px solid #dadce0;
+            border-radius: 25px; font-size: 1rem; font-weight: bold; background: #fff;
+            cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .mode-btn.active-fast { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
+        .mode-btn.active-sight { background: var(--sightseeing-color); color: #fff; border-color: var(--sightseeing-color); }
+
+        /* ⏱️ 到着時間メーター */
         .time-panel {
             background: #fff; padding: 12px; margin: 10px;
             border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-            text-align: center; z-index: 1000;
+            text-align: center; z-index: 1000; align-self: center;
+            max-width: 600px; width: calc(100% - 44px);
             border-left: 6px solid var(--primary-color);
-            max-width: 600px; width: calc(100% - 44px); align-self: center;
+            transition: border-color 0.3s;
         }
-        .time-main { font-size: 1.6rem; font-weight: bold; color: #000; margin-bottom: 4px; }
-        .time-sub { font-size: 1rem; color: #ea4335; font-weight: bold; }
 
         /* メインエリア（地図） */
         #main-container { flex-grow: 1; position: relative; width: 100%; }
-        #map { width: 100%; height: 100%; z-index: 1; }
+        #map { width: 100%; height: 100%; z-index: 1; background-color: #e5e3df; }
 
-        /* 光の誘導ライン（より見やすく太く改良） */
+        /* 光の誘導ライン */
         #light-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             pointer-events: none; z-index: 10; display: flex; justify-content: center; align-items: center;
@@ -81,25 +87,21 @@
         }
         @keyframes moveLight { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-        /* 観光地ポップアップ（写真映えする綺麗なデザイン） */
+        /* 観光地おすすめポップアップ */
         #spot-banner {
             position: absolute; top: 15px; left: 5%; width: 90%;
             background: rgba(255, 255, 255, 0.95); color: #202124; padding: 12px;
             border-radius: 12px; font-weight: bold; text-align: center;
             box-shadow: 0 4px 20px rgba(0,0,0,0.2); z-index: 100;
-            display: none; border: 2px solid #34a853; font-size: 1.05rem;
+            display: none; border: 2px solid var(--sightseeing-color); font-size: 1.05rem;
         }
 
-        /* 下部の大きな操作ボタン（押しやすさ重視） */
+        /* 下部ボタン */
         footer { padding: 15px; display: flex; background: #fff; z-index: 1000; justify-content: center; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); }
         .btn-container { display: flex; gap: 12px; width: 100%; max-width: 600px; }
-        button {
-            flex: 1; padding: 16px; border: none; border-radius: 12px;
-            font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: all 0.2s;
-        }
-        .btn-primary { background-color: var(--primary-color); color: #fff; box-shadow: 0 4px 6px rgba(26,115,232,0.2); }
+        button { flex: 1; padding: 16px; border: none; border-radius: 12px; font-size: 1.1rem; font-weight: bold; cursor: pointer; }
+        .btn-start { background-color: #202124; color: #fff; }
         .btn-secondary { background-color: #f1f3f4; color: var(--text-dark); }
-        button:active { transform: scale(0.97); }
     </style>
 </head>
 <body>
@@ -112,14 +114,19 @@
             </div>
             <div class="input-row">
                 <span class="input-label label-end">到着</span>
-                <input type="text" id="end-point" class="nav-input" value="近くの有名な観光地" placeholder="どこにいきますか？">
+                <input type="text" id="end-point" class="nav-input" value="嵐山（渡月橋）" placeholder="どこにいきますか？">
             </div>
         </div>
     </div>
 
-    <div class="time-panel">
-        <div id="arrival-time" class="time-main">⏱️ 到着予想：---</div>
-        <div id="time-saved" class="time-sub"></div>
+    <div class="route-selector">
+        <button id="btn-fast" class="mode-btn active-fast" onclick="selectRouteMode('fast')">⚡ 最短ルート</button>
+        <button id="btn-sight" class="mode-btn" onclick="selectRouteMode('sight')">🌸 観光ルート</button>
+    </div>
+
+    <div id="time-panel" class="time-panel">
+        <div id="arrival-time" style="font-size: 1.6rem; font-weight: bold; color: #000; margin-bottom: 4px;">⏱️ 到着予想：---</div>
+        <div id="time-saved" style="font-size: 1rem; font-weight: bold;"></div>
     </div>
 
     <div id="main-container">
@@ -133,28 +140,30 @@
     <footer>
         <div class="btn-container">
             <button class="btn-secondary" onclick="toggleHUD()">画面反転 (HUD)</button>
-            <button class="btn-primary" onclick="startNavigation()">🧭 ナビ開始</button>
+            <button class="btn-start" onclick="startNavigation()">🧭 ナビ開始</button>
         </div>
     </footer>
 
     <script>
         let map;
         let marker;
+        let currentMode = 'fast'; // 初期値は最短ルート
 
         window.onload = function() {
-            // おなじみのGoogleマップ風の倍率と見やすさで初期化
-            map = L.map('map', { zoomControl: false }).setView([35.681236, 139.767125], 15);
+            // 地図の初期化（世界中で確実に見られる標準マップへ変更）
+            map = L.map('map', { zoomControl: false }).setView([35.681236, 139.767125], 14);
             
-            // 🗺️ 本物のGoogle道路マップを読み込み
-            L.gridLayer.googleMutant({ type: 'roadmap' }).addTo(map);
+            // 🗺️ 見やすい綺麗な標準地図タイルをセット
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
 
             // GPSの取得開始
             if (navigator.geolocation) {
                 navigator.geolocation.watchPosition(updateLocation, handleGPSError, { enableHighAccuracy: true, timeout: 5000 });
             }
             
-            // 初期状態の到着時間を計算して表示
-            updateEstimatedTime(0);
+            updateEstimatedTime();
         };
 
         function updateLocation(position) {
@@ -163,43 +172,71 @@
             const currentPos = [lat, lng];
 
             if (!marker) {
-                // Googleマップと同じ「青い現在地サークル」を表現
                 marker = L.circleMarker(currentPos, { color: '#ffffff', weight: 2, radius: 9, fillColor: '#1a73e8', fillOpacity: 1 }).addTo(map);
             } else {
                 marker.setLatLng(currentPos);
             }
-            map.setView(currentPos, 16); 
+            map.setView(currentPos, 15); 
         }
 
-        // 時間を計算して「〇時〇分につく」を作る関数
-        function updateEstimatedTime(delayMinutes) {
-            const now = new Date();
-            // 基本の所要時間を25分とする
-            const totalTravelTime = 25 + delayMinutes; 
-            now.setMinutes(now.getMinutes() + totalTravelTime);
+        // 🔀 ルートボタンが押された時の切り替え処理
+        function selectRouteMode(mode) {
+            currentMode = mode;
+            const btnFast = document.getElementById('btn-fast');
+            const btnSight = document.getElementById('btn-sight');
+            const timePanel = document.getElementById('time-panel');
 
+            if (mode === 'fast') {
+                btnFast.className = "mode-btn active-fast";
+                btnSight.className = "mode-btn";
+                timePanel.style.borderLeftColor = "var(--primary-color)";
+            } else {
+                btnFast.className = "mode-btn";
+                btnSight.className = "mode-btn active-sight";
+                timePanel.style.borderLeftColor = "var(--sightseeing-color)";
+            }
+            updateEstimatedTime();
+        }
+
+        // モードに合わせて「到着時間」を自動計算する関数
+        function updateEstimatedTime() {
+            const now = new Date();
+            let travelTime = 20; // 最短ルートの基本時間（20分）
+
+            if (currentMode === 'sight') {
+                travelTime = 38; // 観光ルートはのんびり行くので38分
+            }
+
+            now.setMinutes(now.getMinutes() + travelTime);
             const hours = String(now.getHours()).padStart(2, '0');
             const minutes = String(now.getMinutes()).padStart(2, '0');
 
-            document.getElementById('arrival-time').innerHTML = `⏱️ <b>${hours}:${minutes}</b> に到着予定 (残り ${totalTravelTime} 分)`;
+            document.getElementById('arrival-time').innerHTML = `⏱️ <b>${hours}:${minutes}</b> に到着予定`;
+
+            const timeSavedDiv = document.getElementById('time-saved');
+            if (currentMode === 'fast') {
+                timeSavedDiv.style.color = "var(--primary-color)";
+                timeSavedDiv.innerHTML = `⚡ 渋滞を避けた、今一番早く着くルートです（残り ${travelTime} 分）`;
+                document.getElementById('spot-banner').style.display = 'none';
+            } else {
+                timeSavedDiv.style.color = "var(--sightseeing-color)";
+                timeSavedDiv.innerHTML = `🌸 周辺の景色を楽しめるお出かけルートです（残り ${travelTime} 分）`;
+            }
         }
 
-        // 🧭 ナビ開始ボタンを押したときの処理
+        // 🧭 ナビ開始
         function startNavigation() {
             const endPoint = document.getElementById('end-point').value;
-
-            // 1. 到着時間メーターを「渋滞＋迂回」の計算に更新
-            updateEstimatedTime(-8); // 迂回ルートで8分縮まった設定
-            document.getElementById('time-saved').innerHTML = `✨ 光のルートで通常の道より <b>8分短縮</b> できます！`;
-
-            // 2. 黄金の光誘導ラインをオン
             document.getElementById('light-bar').style.display = 'block';
             
-            // 3. 目的地の観光情報バナーを表示
-            document.getElementById('spot-banner').innerHTML = `🌟 観光ルート案内中：<b>${endPoint}</b> 手前の絶景スポットを通ります`;
-            document.getElementById('spot-banner').style.display = 'block';
+            if (currentMode === 'sight') {
+                document.getElementById('spot-banner').innerHTML = `🌟 観光案内中：<b>${endPoint}</b> までの道中に絶景スポットがあります！`;
+                document.getElementById('spot-banner').style.display = 'block';
+            } else {
+                document.getElementById('spot-banner').style.display = 'none';
+            }
 
-            if (navigator.vibrate) { navigator.vibrate([200, 100, 200]); }
+            if (navigator.vibrate) { navigator.vibrate([200, 100]); }
         }
 
         function handleGPSError(error) { console.warn("GPS計測中: " + error.message); }
