@@ -1,1 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>未来の交通シグナル - Light Guide</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0b0f19;
+            color: #ffffff;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100vh;
+        }
 
+        /* HUD（反転）モードの切り替え用スタイル */
+        .hud-mode {
+            transform: scaleX(-1);
+        }
+
+        header {
+            padding: 20px;
+            text-align: center;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8), rgba(0,0,0,0));
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 1.2rem;
+            margin: 0;
+            letter-spacing: 2px;
+            color: #00ffcc;
+        }
+
+        /* 光のシグナルを表示するメインエリア */
+        #display-area {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        /* 黄金色の光の波アニメーション */
+        .light-stream {
+            width: 80%;
+            height: 10px;
+            background: linear-gradient(90deg, transparent, #ffd700, #ffffff, #ffd700, transparent);
+            background-size: 200% 100%;
+            border-radius: 5px;
+            box-shadow: 0 0 30px #ffd700, 0 0 10px #ffd700;
+            animation: moveLight 2s infinite linear;
+            display: none; /* 初期状態は非表示 */
+        }
+
+        @keyframes moveLight {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .status-text {
+            position: absolute;
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(255,215,0,0.5);
+            text-align: center;
+        }
+
+        /* コントロールボタンエリア */
+        footer {
+            padding: 30px 20px;
+            display: flex;
+            gap: 15px;
+            background: linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0));
+            z-index: 10;
+        }
+
+        button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 30px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background-color: #ffd700;
+            color: #000;
+            box-shadow: 0 0 15px rgba(255,215,0,0.4);
+        }
+
+        .btn-secondary {
+            background-color: rgba(255,255,255,0.1);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>AI TRAFFIC OPTIMIZER</h1>
+    </header>
+
+    <div id="display-area">
+        <div id="status" class="status-text">道路は順調です<br><span style="font-size:0.9rem; color:#aaa;">渋滞を監視中...</span></div>
+        <div id="light" class="light-stream"></div>
+    </div>
+
+    <footer>
+        <button class="btn-secondary" onclick="toggleHUD()">HUDモード</button>
+        <button class="btn-primary" onclick="simulateSignal()">シグナルテスト</button>
+    </footer>
+
+    <script>
+        // PWAのService Workerを登録するプログラム
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log('Service Worker 登録完了'))
+                .catch(err => console.error('Service Worker 登録失敗', err));
+        }
+
+        // HUD（フロントガラス投影用の左右反転）切り替え
+        function toggleHUD() {
+            document.body.classList.toggle('hud-mode');
+        }
+
+        // 渋滞検知時の光シグナルをシミュレートする関数
+        function simulateSignal() {
+            const status = document.getElementById('status');
+            const light = document.getElementById('light');
+
+            status.innerHTML = "<span style='color:#ffd700;'>◆ 渋滞回避ルート検知 ◆</span><br><span style='font-size:1.2rem;'>左方向へ迂回してください</span>";
+            light.style.display = 'block';
+
+            // スマホを振動させる（バイブレーション機能）
+            if (navigator.vibrate) {
+                navigator.vibrate([200, 100, 200]);
+            }
+        }
+    </script>
+</body>
+</html>
